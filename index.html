@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Меню калорийности Mare d'Amore</title>
+
+    <!-- Content Security Policy с разрешением unsafe-eval -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+        font-src 'self' https://fonts.gstatic.com;
+        connect-src 'self';
+        img-src 'self' data: https:;
+    ">
+
+    <!-- Фавикон -->
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+
+    <!-- Мета-данные -->
+    <meta property="og:title" content="Меню калорийности Mare d'Amore" />
+    <meta property="og:description" content="Калькулятор калорийности" />
+    <meta property="og:url" content="https://yourwebsite.com/page" />
+
+    <!-- Шрифты -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Стили -->
+    <link rel="stylesheet" href="style.css" />
+    
+    <!-- Vue.js -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <h3>Калькулятор калорийности</h3>
+        <h2>Mare d'Amore</h2>
+        
+        <!-- Поиск -->
+        <div class="search-container">
+            <input 
+                type="text" 
+                v-model="searchQuery" 
+                placeholder="Поиск блюд..." 
+                class="search-input"
+            >
+        </div>
+
+        <!-- Фильтры категорий -->
+        <div class="category-filters">
+            <button 
+                v-for="category in categories" 
+                :key="category"
+                @click="setCategory(category)"
+                class="filter-btn"
+                :class="{ active: activeCategory === category }"
+            >
+                {{ category === 'all' ? 'Все блюда' : category }}
+            </button>
+        </div>
+
+        <!-- Категории меню -->
+        <div 
+            v-for="category in menuCategories" 
+            :key="category.name"
+            class="menu-category"
+            v-show="shouldShowCategory(category)"
+        >
+            <h3>{{ category.name }}</h3>
+            <div
+                v-for="(item, index) in filteredItems(category.items)"
+                :key="item.nazvanie_blyuda"
+                class="menu-item"
+            >
+                <div class="item-info">
+                    <div class="item-name">{{ item.nazvanie_blyuda }}</div>
+                    <div class="item-details">
+                        Вес: {{ (item.vykhod_blyuda * 1000) }}г | Белки: {{ item.belki }}г | 
+                        Жиры: {{ item.zhiry }}г | Углеводы: {{ item.uglevody }}г | 
+                        {{ item.kcal }} ккал
+                    </div>
+                </div>
+                <div class="buttons">
+                    <button class="btn" @click="addToCart(item)">+</button>
+                    <button
+                        class="btn"
+                        v-if="getCartItem(item) && getCartItem(item).count > 0"
+                        @click="removeFromCart(item)"
+                    >
+                        -
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Всплывающее окно с итогами -->
+        <div class="floating-cart" v-if="cart.length > 0">
+            <div class="floating-cart-content" @click="showDetailedCart = true">
+                <div class="floating-summary">
+                    <strong>Выбрано: {{ totalItems }}</strong><br>
+                    {{ totalKcal }} ккал
+                </div>
+                <button class="btn-clear" @click.stop="clearCart">
+                    ×
+                </button>
+            </div>
+        </div>
+
+        <!-- Детальная корзина -->
+        <div class="detailed-cart" v-if="showDetailedCart && cart.length > 0">
+            <div class="detailed-cart-content">
+                <div class="cart-header">
+                    <h3>Выбранные блюда</h3>
+                    <button class="close-btn" @click="showDetailedCart = false">×</button>
+                </div>
+                <div class="cart-items">
+                    <div
+                        v-for="(item, index) in cart"
+                        :key="item.nazvanie_blyuda + index"
+                        class="cart-item"
+                    >
+                        <div class="cart-item-info">
+                            <strong>{{ item.nazvanie_blyuda }}</strong><br>
+                            <span class="cart-item-details">
+                                ×{{ item.count }} | {{ item.kcal * item.count }} ккал
+                            </span>
+                        </div>
+                        <div class="cart-buttons">
+                            <button class="btn-small" @click="addToCart(item)">+</button>
+                            <button class="btn-small" @click="removeFromCart(item)">-</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary">
+                    <div class="summary-item">
+                        <span>Белки:</span>
+                        <strong>{{ totalBelki }}г</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Жиры:</span>
+                        <strong>{{ totalZhiry }}г</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Углеводы:</span>
+                        <strong>{{ totalUglevody }}г</strong>
+                    </div>
+                    <div class="summary-item total">
+                        <span>Всего:</span>
+                        <strong>{{ totalKcal }} ккал</strong>
+                    </div>
+                </div>
+                <button class="btn-clear-full" @click="clearCart">
+                    Очистить
+                </button>
+            </div>
+        </div>
+
+        <!-- Сообщение при отсутствии результатов -->
+        <div class="empty-state" v-if="!hasResults">
+            <p>По вашему запросу ничего не найдено</p>
+        </div>
+
+        <!-- Сообщение при пустой корзине -->
+        <div class="empty-state" v-if="cart.length === 0 && activeCategory !== 'all' && !searchQuery">
+            <p>Выберите блюда из меню, чтобы рассчитать калорийность</p>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
